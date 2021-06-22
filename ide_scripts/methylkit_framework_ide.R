@@ -4,17 +4,17 @@
 
 #------------------------------------------------------------------------------#
 
-Scripts:
-1.  create.myObj()              # read in coverage files and create methylKit object 
-2.  plot_cov_dist()             # lineplot or boxplots of cpg coverage distribution per sample (all on one plot)
-3.  number_cpg_at_cov_barplot() # Barplot of number of CpGs >= 10X cov (using cpg cov table as input)
-4.  get_promoter_gr()           # use methylKit to create a GRanges object of promoter coordinates from a gtf file 
-5.  summarize_prom_meth()       # use methylKit to summarize coverage and methylation of myObj over the promoters GRanges object
-6.  promoter_cov_pie()          # promoter cov pie charts, one plot file per sample AND all samples on one plot file
-7.  promoter_cov_bar()          # 
-8.  cpg_cov()                   # Produce CpG Coverage Table and filter on coverage
-9.  makeCovPlots()              # Make a methylKit coverage histogram per sample
-10. makeMethStats()             # Make a methylKit percent methylation histogram per sample
+# Scripts:
+# 1.  create.myObj()              # read in coverage files and create methylKit object 
+# 2.  plot_cov_dist()             # lineplot or boxplots of cpg coverage distribution per sample (all on one plot)
+# 3.  number_cpg_at_cov_barplot() # Barplot of number of CpGs >= 10X cov (using cpg cov table as input)
+# 4.  get_promoter_gr()           # use methylKit to create a GRanges object of promoter coordinates from a gtf file 
+# 5.  summarize_prom_meth()       # use methylKit to summarize coverage and methylation of myObj over the promoters GRanges object
+# 6.  promoter_cov_pie()          # promoter cov pie charts, one plot file per sample AND all samples on one plot file
+# 7.  promoter_cov_bar()          # 
+# 8.  cpg_cov()                   # Produce CpG Coverage Table and filter on coverage
+# 9.  makeCovPlots()              # Make a methylKit coverage histogram per sample
+# 10. makeMethStats()             # Make a methylKit percent methylation histogram per sample
 
 #------------------------------------------------------------------------------#
 # Load Libraries
@@ -24,6 +24,7 @@ library(ggplot2)
 library(umap)
 library(tidyr)
 library(scales)
+library(gridExtra)
 
 #------------------------------------------------------------------------------#
 
@@ -72,7 +73,7 @@ create.myObj <- function(cov_file_dir,  metadata, group_var="group", suffix="_ca
 # Can produce lineplots or boxplots
 # Includes all samples on one plot
 
-plot_cov_dist <- function(myObj=myObj, filename="cov.dist.pdf", type="line", fill_col="lightskyblue1") {
+plot_cov_dist <- function(myObj=myObj, filename="cov.dist.pdf", type="line", fill_col="lightskyblue1", width=7, height=7) {
   # get a list of vectors of coverages from each sample df in myObj
   coverage <- sapply(myObj, function(x) getData(x)$coverage)
   # combine into a single vector
@@ -97,7 +98,7 @@ plot_cov_dist <- function(myObj=myObj, filename="cov.dist.pdf", type="line", fil
               geom_freqpoly() +
               scale_y_log10() +
               theme_minimal()
-    ggsave(filename=filename)
+    ggsave(filename=filename, width=width, height=height)
   }
   else if (type=="box") {
     # plot
@@ -106,9 +107,56 @@ plot_cov_dist <- function(myObj=myObj, filename="cov.dist.pdf", type="line", fil
               scale_y_log10() +
               coord_flip() +
               theme_minimal()
-    ggsave(filename=filename)
+    ggsave(filename=filename, width=width, height=height)
   }
 }
+
+
+
+
+############--------------------------------#
+# FUNCTION # to plot coverage distributions #
+############--------------------------------#
+# Can produce lineplots or boxplots
+# Includes all samples on one plot
+
+#plot_cov_dist <- function(myObj=myObj, filename="cov.dist.pdf", type="line", fill_col="lightskyblue1") {
+#  # get a list of vectors of coverages from each sample df in myObj
+#  coverage <- sapply(myObj, function(x) getData(x)$coverage)
+#  # combine into a single vector
+#  coverage_vec <- unlist(coverage)
+#
+#  # get a list of vectors of sample.ids
+#  sample_list <- list()
+#  for (i in 1:length(coverage)) {
+#    sample_list[[i]] <- c(rep(getSampleID(myObj[[i]]), length(coverage[[i]])))
+#  }
+#  # combine into single vector
+#  sample_vec <- unlist(sample_list)
+#
+#  # create df for plotting
+#  df <- data.frame(coverage=coverage_vec,
+#                   sample=sample_vec
+#  )
+#
+#  if (type=="line") {
+#    # plot
+#    myplot <- ggplot(df, aes(x=coverage, color=sample)) +
+#              geom_freqpoly() +
+#              scale_y_log10() +
+#              theme_minimal()
+#    ggsave(filename=filename)
+#  }
+#  else if (type=="box") {
+#    # plot
+#    myplot <- ggplot(df, aes(x=sample, y=coverage)) +
+#              geom_boxplot(fill=fill_col) +
+#              scale_y_log10() +
+#              coord_flip() +
+#              theme_minimal()
+#    ggsave(filename=filename)
+#  }
+#}
 
 #-----------------------------------------------------------------------------------------------#
 
@@ -312,8 +360,8 @@ promoter_cov_pie <- function(my_df_list, total, outdir="cpg_cov_pie_charts") {
 
   # PLOT #
   # create outdir
-  #dir.create(outdir)
-  #setwd(outdir)
+  dir.create(outdir)
+  setwd(outdir)
 
   # create blank theme
   blank_theme <- theme_minimal()+
