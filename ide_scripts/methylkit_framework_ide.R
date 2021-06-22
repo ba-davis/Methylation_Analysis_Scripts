@@ -1,9 +1,22 @@
 # Using methylKit framework/functions to analyze bisulfite sequencing data
-# Uses output of Bismark: cytosine reports or coverage files
+# Uses output of Bismark as input: cytosine reports or coverage files
 # Requires a metadata excel file with sample names and groups/covariates
 
 #------------------------------------------------------------------------------#
 
+Scripts:
+1.  create.myObj()              # read in coverage files and create methylKit object 
+2.  plot_cov_dist()             # lineplot or boxplots of cpg coverage distribution per sample (all on one plot)
+3.  number_cpg_at_cov_barplot() # Barplot of number of CpGs >= 10X cov (using cpg cov table as input)
+4.  get_promoter_gr()           # use methylKit to create a GRanges object of promoter coordinates from a gtf file 
+5.  summarize_prom_meth()       # use methylKit to summarize coverage and methylation of myObj over the promoters GRanges object
+6.  promoter_cov_pie()          # promoter cov pie charts, one plot file per sample AND all samples on one plot file
+7.  promoter_cov_bar()          # 
+8.  cpg_cov()                   # Produce CpG Coverage Table and filter on coverage
+9.  makeCovPlots()              # Make a methylKit coverage histogram per sample
+10. makeMethStats()             # Make a methylKit percent methylation histogram per sample
+
+#------------------------------------------------------------------------------#
 # Load Libraries
 
 library(methylKit)
@@ -97,6 +110,27 @@ plot_cov_dist <- function(myObj=myObj, filename="cov.dist.pdf", type="line", fil
   }
 }
 
+#-----------------------------------------------------------------------------------------------#
+
+############--------------------------------------------------------------#
+# FUNCTION # to make barplot of number of CpGs with at least 10X coverage #
+############--------------------------------------------------------------#
+# use the CpG.coverage.table.txt file created from "cpg_cov" function
+
+number_cpg_at_cov_barplot <- function(cpg_cov_table, filename="cpv_cov_barplot.png") {
+  # read in the cpg cov table
+  df <- read.delim(cpg_cov_table, header=T)
+
+  myplot <- ggplot(df, aes(x=reorder(sample, -CpG.10.), y=CpG.10.)) +
+    geom_bar(stat="identity") +
+    ylab("Number of CpGs with >= 10X cov") +
+    xlab("Sample") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size=4)) +
+    scale_y_continuous(breaks=c(500000,1000000,1500000,2000000,2500000))+
+    scale_y_continuous(labels = comma)
+  ggsave(filename=filename)
+}
 
 #-----------------------------------------------------------------------------------------------#
 
@@ -232,7 +266,7 @@ summarize_prom_meth <- function(myObj=myObj, prom_gr=prom_gr, export=TRUE) {
 
   return(prom.sum_mergedlist)
 
-# merge all of these dfs on chr and start
+  # merge all of these dfs on chr and start
   #final_table <- Reduce(function(df1, df2) merge(df1, df2, by = c("chr","start")), prom.sum_mergedlist)
 
   #if (export==TRUE) {
@@ -245,11 +279,12 @@ summarize_prom_meth <- function(myObj=myObj, prom_gr=prom_gr, export=TRUE) {
 
 #-------------------------------------------------------------------------------------------------------------#
 
-############-------------------------------------------------#
-# FUNCTION # to produce cov and meth_rate table of promoters #
-############-------------------------------------------------#
+############--------------------------------------------#
+# FUNCTION # to produce pie charts of promoter coverage #
+############--------------------------------------------#
 # Produce individual pie charts of each sample showing percent of promoters
 #  with various coverage amount categories
+# Option to produce individual plot files per sample or all plots on one file
 
 # promoter_cov_pie: function to plot pie charts of promoter cpg coverage per sample
 # total: total number of gene promoters considered
@@ -277,8 +312,9 @@ promoter_cov_pie <- function(my_df_list, total, outdir="cpg_cov_pie_charts") {
 
   # PLOT #
   # create outdir
-  dir.create(outdir)
-  setwd(outdir)
+  #dir.create(outdir)
+  #setwd(outdir)
+
   # create blank theme
   blank_theme <- theme_minimal()+
   theme(
@@ -301,14 +337,170 @@ promoter_cov_pie <- function(my_df_list, total, outdir="cpg_cov_pie_charts") {
 
     ggsave(myplot, filename=paste0(names(plotdf_list)[i],"_promoter_cov.png"))
   }
+
+  #-----------------------------------#
+  # put all sample plots on one page
+
+  # order list of df's by ascending number of 0 coverage
+  ### store names of df's (sample names)
+  samp_names <- names(plotdf_list)
+  ### loop through the list of df's
+  for (i in 1:length(plotdf_list)) {
+    # add sample name to a colname for storage
+    colnames(plotdf_list[[i]])[2] <- paste0(names(plotdf_list)[i], "_value")
+    # rename each df to be the 0 coverage value
+    names(plotdf_list)[i] <- plotdf_list[[i]][1,2]
+  }
+  # store a vector of names (now, representing 0 coverage value) in ascending order
+  foo <- as.character(sort(as.numeric(names(plotdf_list))))
+  # reorder the list of df's
+  newlist <- plotdf_list[foo]
+  # rename each df to be sample name and remove sample name from colnames
+  for (i in 1:length(newlist)) {
+    names(newlist)[i] <- gsub("_value", "", colnames(newlist[[i]])[2])
+    colnames(newlist[[i]])[2] <- "value"
+  }
+
+  # Define plotting function of pie chart
+  pie_fxn <- function(df, samp_name, legend=TRUE) {
+    if(legend==TRUE) {
+      myplot <- ggplot(df, aes(x="", y=value, fill=coverage)) +
+        geom_bar(width = 1, stat = "identity") +
+        coord_polar("y", start=0) +
+        scale_fill_brewer(palette="Blues") +
+        blank_theme +
+        theme(axis.text.x=element_blank()) +
+        #labs(title=paste0(names(plotdf_list)[i]," Promoter Coverage: ", total, " promoters"))
+        labs(title=samp_name)
+    }
+    if(legend==FALSE) {
+      myplot <- ggplot(df, aes(x="", y=value, fill=coverage)) +
+        geom_bar(width = 1, stat = "identity") +
+        coord_polar("y", start=0) +
+        scale_fill_brewer(palette="Blues") +
+        blank_theme +
+        theme(axis.text.x=element_blank()) +
+        #labs(title=paste0(names(plotdf_list)[i]," Promoter Coverage: ", total, " promoters"))
+        labs(title=samp_name) +
+        theme(legend.position="none")
+    }
+    return(myplot)
+  }
+
+  # create one plot to get legend
+  #p1 <- pie_fxn(plotdf_list[[1]])
+
+  # extract legend
+  #g_legend <- function(a.gplot){
+  #  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  #  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  #  legend <- tmp$grobs[[leg]]
+  #  return(legend)
+  #}
+  #mylegend <- g_legend(p1)
+
+  plotdf_list <- newlist
+  # re-run plot function, this time on list of df's and without legends
+  myplots <- lapply(seq_along(plotdf_list), function(i) {
+    pie_fxn(df=plotdf_list[[i]], samp_name=names(plotdf_list)[i], legend=FALSE)
+  })
+
+  n <- length(myplots)
+  nCol <- floor(sqrt(n))
+  #do.call("grid.arrange", c(myplots, ncol=nCol))
+  grid.arrange(grobs=myplots)
+  ggsave(file="promoter_cov_all_piecharts.png", arrangeGrob(grobs=myplots, ncol=nCol), width=16, height=16)
+  #g <- arrangeGrob(myplots)
+  #ggsave(filename="promoter_cov_all_piecharts.png", g)
+
   setwd("..")
+  return(myplots)
 }
 
+
+
+
+
+
+
+
+
+
+
+#XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX#
+############--------------------------------------------#
+# FUNCTION # to produce pie charts of promoter coverage #
+############--------------------------------------------#
+# Produce individual pie charts of each sample showing percent of promoters
+#  with various coverage amount categories
+# Option to produce individual plot files per sample or all plots on one file
+
+# promoter_cov_pie: function to plot pie charts of promoter cpg coverage per sample
+# total: total number of gene promoters considered
+# outdir: desired name of output directory (to be created) to store pie charts
+
+#promoter_cov_pie <- function(my_df_list, total, outdir="cpg_cov_pie_charts") {
+#  # initialize a plotdf list to hold data frames for each sample to be used for plotting
+#  plotdf_list <- list()
+#  # Loop through each df in the list and create a new plotdf for each that contains the coverage at each coverage group
+#  # Also, change the factor levels order for proper plotting
+#  for (i in 1:length(my_df_list)){
+#    plotdf_list[[i]] <- data.frame(coverage=c("0","1-4","5-9","10-24","25-49","50-99",">99"),
+#                                   value=c(total - nrow(my_df_list[[i]]),
+#                                          nrow(my_df_list[[i]][my_df_list[[i]]$coverage > 0 & my_df_list[[i]]$coverage < 5, ]),
+#                                          nrow(my_df_list[[i]][my_df_list[[i]]$coverage > 4 & my_df_list[[i]]$coverage < 10, ]),
+#                                          nrow(my_df_list[[i]][my_df_list[[i]]$coverage > 9 & my_df_list[[i]]$coverage < 25, ]),
+#                                          nrow(my_df_list[[i]][my_df_list[[i]]$coverage > 24 & my_df_list[[i]]$coverage < 50, ]),
+#                                          nrow(my_df_list[[i]][my_df_list[[i]]$coverage > 49 & my_df_list[[i]]$coverage < 100, ]),
+#                                          nrow(my_df_list[[i]][my_df_list[[i]]$coverage > 99, ]))
+#    )
+#
+#    plotdf_list[[i]]$coverage <- factor(plotdf_list[[i]]$coverage, levels = c("0","1-4","5-9","10-24","25-49","50-99",">99"))
+#  }
+#  names(plotdf_list) <- names(my_df_list)
+#
+#  # PLOT #
+#  # create outdir
+#  dir.create(outdir)
+#  setwd(outdir)
+#  # create blank theme
+#  blank_theme <- theme_minimal()+
+#  theme(
+#  axis.title.x = element_blank(),
+#  axis.title.y = element_blank(),
+#  panel.border = element_blank(),
+#  panel.grid=element_blank(),
+#  axis.ticks = element_blank(),
+#  plot.title=element_text(size=14, face="bold"))
+#
+#  # loop through the plotdf_list and plot each sample
+#  for (i in 1:length(plotdf_list)){
+#    myplot <- ggplot(plotdf_list[[i]], aes(x="", y=value, fill=coverage)) +
+#              geom_bar(width = 1, stat = "identity") +
+#              coord_polar("y", start=0) +
+#              scale_fill_brewer(palette="Blues") +
+#              blank_theme +
+#              theme(axis.text.x=element_blank()) +
+#              labs(title=paste0(names(plotdf_list)[i]," Promoter Coverage: ", total, " promoters"))
+#
+#    ggsave(myplot, filename=paste0(names(plotdf_list)[i],"_promoter_cov.png"))
+#  }
+#  setwd("..")
+#}
+
+#-----------------------------------------------------------------------------------------------------------------------------#
 #-----------------------------------------------------------------------------------------------------------------------------#
 
-############-------------------------------------------------#
-# FUNCTION # to produce cov and meth_rate table of promoters #
-############-------------------------------------------------#
+
+
+
+
+
+
+
+############------------------------------------------------------------------------------------------------------------#
+# FUNCTION # to produce promoter coverage barplot where bar height represents percent of gene promoters with X coverage #
+############------------------------------------------------------------------------------------------------------------#
 # plot barchart of all samples in one plot,
 # bar height represents percent of gene promoters with X coverage
 
