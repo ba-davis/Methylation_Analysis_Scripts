@@ -11,10 +11,11 @@
 # 4.  get_promoter_gr()           # use methylKit to create a GRanges object of promoter coordinates from a gtf file 
 # 5.  summarize_prom_meth()       # use methylKit to summarize coverage and methylation of myObj over the promoters GRanges object
 # 6.  promoter_cov_pie()          # promoter cov pie charts, one plot file per sample AND all samples on one plot file
-# 7.  promoter_cov_bar()          # 
+# 7.  promoter_cov_bar()          # bar height represents percent of gene promoters with X coverage
 # 8.  cpg_cov()                   # Produce CpG Coverage Table and filter on coverage
 # 9.  makeCovPlots()              # Make a methylKit coverage histogram per sample
 # 10. makeMethStats()             # Make a methylKit percent methylation histogram per sample
+# 11. get_merged_regions()        # merging and more, cpg or regional
 
 #------------------------------------------------------------------------------#
 # Load Libraries
@@ -672,3 +673,61 @@ makeMethStats <- function(myObj=myObj, basedir=getwd(), outdir="meth_stats_plots
 
 #--------------------------------------------------------------------------------------------------------------------#
 
+############------------------------------------------------------------------------------------#
+# FUNCTION # to cov filter, optional normalize by cov, merge on cpgs or tile and merge on tiles #
+############------------------------------------------------------------------------------------#
+
+# myObj
+# min: minimum cpg cov number (default 10)
+# max: maximum cpg cov percent (default 99.9)
+# normalize: whether or not to normalize by coverage after filtering (default TRUE)
+# tile_size: bp size of genomic tile region (default 1000)
+# step_size: bp size of step between tiles (default 1000)
+# min_cpg: remove regions with less than this number of covered cytosines (default 10)
+# mpg: minimin per group, number of samples per group the tile must appear in to be kept after merging (default NULL)
+# returns the meth object of merged tiled regions
+get_merged_regions <- function(myObj=myObj, min=10, max=99.9, normalize=TRUE, regional=TRUE, tile_size=1000, step_size=1000, min_cpg=10, mpg=NULL, destrand=FALSE) {
+
+  # filter cpgs
+  print("Filtering CpGs with low or high coverage.")
+  myObj.filtered <- filterByCoverage(myObj, lo.count=min, lo.perc=NULL, hi.count=NULL, hi.perc=max)
+
+  # normalize if parameter is TRUE
+  if (normalize) {
+    print("Normalizing coverage.")
+    myObj.filtered <- normalizeCoverage(myObj.filtered, method="median")
+  }
+
+  # if regional=TRUE, tile into regions and summarize
+  if (regional) {
+    # Summarize CpG methylation in tiled regions
+    print("Summarizing CpG methylation per tiled region.")
+    my.tiles <- tileMethylCounts(myObj.filtered,
+                                 win.size=tile_size,
+                                 step.size=step_size,
+                                 cov.bases=min_cpg,
+                                 mc.cores=8
+    )
+    for (i in 1:length(my.tiles)) {
+      print(nrow(my.tiles[[i]]))
+    }
+    # merge the tiles
+    print("Merging tiled regions across samples.")
+    meth <- methylKit::unite(my.tiles, min.per.group=mpg, mc.cores=8)
+    print(paste0("Returning ", nrow(meth), " regions."))
+
+    return(meth)
+  }
+
+  # if not regional, just merge cpgs with no tiling
+  else {
+    print("merging CpGs")
+    meth <- methylKit::unite(myObj.filtered,
+                  min.per.group=mpg,
+                  destrand=destrand)
+    print(paste0("Returning ", nrow(meth), " CpGs."))
+    return(meth)
+  }
+}
+
+#----------------------------------------------------------------------------------------------------------------------------------#
