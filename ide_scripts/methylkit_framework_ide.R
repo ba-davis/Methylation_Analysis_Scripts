@@ -25,7 +25,8 @@ library(ggplot2)
 library(umap)
 library(tidyr)
 library(scales)
-library(gridExtra)
+library(gridExtra) # for arranging multi-sample plots on one file
+library(impute)    # for imputing missing values
 
 #------------------------------------------------------------------------------#
 
