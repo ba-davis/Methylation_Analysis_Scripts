@@ -10,6 +10,9 @@
 ############--------------------------------------#
 # will utilize methylKit's "MN" overdispersion and "Chisq" test
 calc.DMRs <- function(my.meth, covariate=NULL, overdispersion="MN", test="Chisq", comparison, meth.diff=10, qval=0.1, type="DMR", mc=8) {
+  options(scipen=999)
+  
+  print("Calculating DMRs.")
   # Calculate DMRs: Overdispersion:YES, Test:Chisq
   myDiff <- calculateDiffMeth(my.meth,
                               covariates=covariate,
@@ -124,26 +127,38 @@ calc.DMRs <- function(my.meth, covariate=NULL, overdispersion="MN", test="Chisq"
     )
 
     my.hyper <- myDiff.sig.df[myDiff.sig.df$meth.diff > 0, c(2,3,4,1)]
-    my.hyper$start <- my.hyper$start - 1
-    my.hyper$chr <- paste0("chr", my.hyper$chr)
-    write.table(my.hyper,
-                paste0(comparison, ".sig", type, "s.hyper.GREAT.bed"),
-                sep="\t",
-                col.names=FALSE,
-                row.names=FALSE,
-                quote=FALSE
-    )
+    # check if there are 0 sig hyper DMRs
+    if (nrow(my.hyper) > 0) {
+      my.hyper$start <- my.hyper$start - 1
+      my.hyper$chr <- paste0("chr", my.hyper$chr)
+      write.table(my.hyper,
+                  paste0(comparison, ".sig", type, "s.hyper.GREAT.bed"),
+                  sep="\t",
+                  col.names=FALSE,
+                  row.names=FALSE,
+                  quote=FALSE
+      )
+    }
+    else if (nrow(my.hyper) < 1) {
+      print("Zero sig hyper DMRs for GREAT.")
+    }
 
     my.hypo <- myDiff.sig.df[myDiff.sig.df$meth.diff < 0, c(2,3,4,1)]
-    my.hypo$start <- my.hypo$start - 1
-    my.hypo$chr <- paste0("chr", my.hypo$chr)
-    write.table(my.hypo,
-                paste0(comparison, ".sig", type, "s.hypo.GREAT.bed"),
-                sep="\t",
-                col.names=FALSE,
-                row.names=FALSE,
-                quote=FALSE
-    )
+    # check if there are 0 sig hypo DMRs
+    if (nrow(my.hypo) > 0) {
+      my.hypo$start <- my.hypo$start - 1
+      my.hypo$chr <- paste0("chr", my.hypo$chr)
+      write.table(my.hypo,
+                  paste0(comparison, ".sig", type, "s.hypo.GREAT.bed"),
+                  sep="\t",
+                  col.names=FALSE,
+                  row.names=FALSE,
+                  quote=FALSE
+      )
+    }
+    else if (nrow(my.hypo) < 1) {
+      print("Zero sig hypo DMRs for GREAT.")
+    }
   }
   else {
     print(paste0("There are zero ", type, "s passing signficance thresholds."))
